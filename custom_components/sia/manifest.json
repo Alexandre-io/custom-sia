@@ -7,5 +7,9 @@
   "documentation": "https://www.home-assistant.io/integrations/sia",
   "iot_class": "local_push",
   "loggers": ["pysiaalarm"],
-  "requirements": []
+  "requirements": [
+    "nest_asyncio==1.6.0",
+    "pycryptodome==3.23.0",
+    "pytz==2025.2"
+  ]
 }
