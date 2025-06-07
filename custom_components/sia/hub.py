@@ -5,7 +5,7 @@ from copy import deepcopy
 import logging
 from typing import Any
 
-from pysiaalarm.aio import CommunicationsProtocol, SIAAccount, SIAClient, SIAEvent
+from .pysiaalarm.aio import CommunicationsProtocol, SIAAccount, SIAClient, SIAEvent
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PORT, CONF_PROTOCOL, EVENT_HOMEASSISTANT_STOP

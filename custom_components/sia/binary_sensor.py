@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 import logging
 
-from pysiaalarm import SIAEvent
+from .pysiaalarm import SIAEvent
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,

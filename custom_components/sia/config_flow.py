@@ -6,7 +6,7 @@ from copy import deepcopy
 import logging
 from typing import Any
 
-from pysiaalarm import (
+from .pysiaalarm import (
     InvalidAccountFormatError,
     InvalidAccountLengthError,
     InvalidKeyFormatError,

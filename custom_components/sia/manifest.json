@@ -1,11 +1,11 @@
 {
   "domain": "sia",
   "name": "SIA Alarm Systems",
-  "version": "1.0.3",
-  "codeowners": ["@voskuh"],
+  "version": "0.0.2",
+  "codeowners": ["@alexandre-io"],
   "config_flow": true,
   "documentation": "https://www.home-assistant.io/integrations/sia",
   "iot_class": "local_push",
   "loggers": ["pysiaalarm"],
-  "requirements": ["git+https://github.com/voskuh/pysiaalarm@fix-blocking-call#pysiaalarm"]
+  "requirements": []
 }

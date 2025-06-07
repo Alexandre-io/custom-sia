@@ -5,7 +5,7 @@ from abc import abstractmethod
 from dataclasses import dataclass
 import logging
 
-from pysiaalarm import SIAEvent
+from .pysiaalarm import SIAEvent
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PORT

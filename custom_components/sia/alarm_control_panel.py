@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 
-from pysiaalarm import SIAEvent
+from .pysiaalarm import SIAEvent
 
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
