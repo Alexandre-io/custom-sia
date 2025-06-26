@@ -62,7 +62,7 @@ class SIAServerTCP(BaseSIAServer):
         writer.close()
 
 class SIAServerOH(BaseSIAServer):
-    """Class for SIA OH Server Async."""
+    """Class for SIA Osborne-Hoffman (OH) Server Async."""
 
     def __init__(
         self,
@@ -71,57 +71,63 @@ class SIAServerOH(BaseSIAServer):
         counts: Counter,
         oh: OsborneHoffman = None
     ):
-        """Create a SIA OH Server.
-
-        Arguments:
-            accounts Dict[str, SIAAccount] -- accounts as dict with account_id as key, SIAAccount object as value.  # pylint: disable=line-too-long
-            func Callable[[SIAEvent], None] -- Function called for each valid SIA event, that can be matched to a account.  # pylint: disable=line-too-long
-            counts Counter -- counter kept by client to give insights in how many errorous events were discarded of each type.  # pylint: disable=line-too-long
-        """
+        """Create a SIA OH Server."""
         BaseSIAServer.__init__(self, accounts, counts, async_func=func)
+        self.oh = oh or OsborneHoffman()
 
     async def handle_line(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
-        """Handle line for SIA Events. This supports TCP connections.
+        """Handle line for SIA OH Events (Osborne-Hoffman encrypted format)."""
 
-        Arguments:
-            reader {asyncio.StreamReader} -- StreamReader with new data.
-            writer {asyncio.StreamWriter} -- StreamWriter to respond.
+        peername = writer.get_extra_info("peername")
+        _LOGGER.debug("New OH connection from: %s", peername)
 
-        """
-        oh = OsborneHoffman()
-        scrambled_key = oh.get_scrambled_key()
+        scrambled_key = self.oh.get_scrambled_key()
 
-        _LOGGER.debug("Handle line started")
-        while True and not self.shutdown_flag:  # pragma: no cover  # type: ignore
+        while True and not self.shutdown_flag:
             try:
-                _LOGGER.debug("Send scrambled key")
+                _LOGGER.debug("Sending scrambled key to: %s", peername)
                 writer.write(scrambled_key)
                 await writer.drain()
-                _LOGGER.debug("Receive data...")
 
+                _LOGGER.debug("Waiting for encrypted data from: %s", peername)
                 data = await reader.read(1000)
-                _LOGGER.debug("Data received: %s", data)
+                _LOGGER.debug("Encrypted data received: %s", data)
             except ConnectionResetError:
-                break
-            if data == EMPTY_BYTES or reader.at_eof():
+                _LOGGER.warning("Connection reset by peer: %s", peername)
                 break
 
-            data = oh.decrypt_data(data)
-            event = self.parse_and_check_event(data)
+            if data == EMPTY_BYTES or reader.at_eof():
+                _LOGGER.debug("Connection closed by client: %s", peername)
+                break
+
+            # Déchiffrer les données reçues
+            decrypted_data = self.oh.decrypt_data(data)
+            _LOGGER.debug("Decrypted data: %s", decrypted_data)
+
+            event = self.parse_and_check_event(decrypted_data)
             if not event:
+                _LOGGER.warning("Failed to parse event from: %s", peername)
                 continue
+
+            # Créer et chiffrer la réponse
             response = event.create_response()
-            _LOGGER.debug("Response send to alarm system: %s", response)
-            response = oh.encrypt_data(response)
-            writer.write(response)
+            if isinstance(response, str):
+                response = response.encode()
+            encrypted_response = self.oh.encrypt_data(response)
+
+            _LOGGER.debug("Sending encrypted response: %s", encrypted_response)
+            writer.write(encrypted_response)
             await writer.drain()
 
-            await self.async_func_wrap(event)
+            # Lancer le traitement asynchrone sans bloquer la réponse
+            asyncio.create_task(self.async_func_wrap(event))
 
         writer.close()
-        _LOGGER.debug("Handle line finished")
+        await writer.wait_closed()
+        _LOGGER.debug("Connection with %s closed.", peername)
+
 
 class SIAServerUDP(BaseSIAServer, asyncio.DatagramProtocol):
     """Class for SIA UDP Server Async."""
