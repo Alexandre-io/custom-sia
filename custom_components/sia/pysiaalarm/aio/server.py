@@ -85,48 +85,57 @@ class SIAServerOH(BaseSIAServer):
 
         scrambled_key = self.oh.get_scrambled_key()
 
-        while True and not self.shutdown_flag:
-            try:
-                _LOGGER.debug("Sending scrambled key to: %s", peername)
-                writer.write(scrambled_key)
+        try:
+            while True and not self.shutdown_flag:
+                try:
+                    _LOGGER.debug("Sending scrambled key to: %s", peername)
+                    writer.write(scrambled_key)
+                    await writer.drain()
+
+                    _LOGGER.debug("Waiting for encrypted data from: %s", peername)
+                    data = await reader.read(1000)
+                    _LOGGER.debug("Encrypted data received from %s: %s", peername, data)
+                except ConnectionResetError:
+                    _LOGGER.warning("Connection reset by peer: %s", peername)
+                    break
+
+                if data == EMPTY_BYTES or reader.at_eof():
+                    _LOGGER.debug("Connection closed by client: %s", peername)
+                    break
+
+                decrypted_data = self.oh.decrypt_data(data)
+                _LOGGER.debug("Decrypted data from %s: %s", peername, decrypted_data)
+
+                event = self.parse_and_check_event(decrypted_data)
+                if not event:
+                    _LOGGER.warning("Failed to parse event from: %s", peername)
+                    continue
+
+                response = event.create_response()
+                if isinstance(response, str):
+                    response = response.encode()
+
+                encrypted_response = self.oh.encrypt_data(response)
+
+                _LOGGER.debug("Sending encrypted response to %s: %s", peername, encrypted_response)
+                writer.write(encrypted_response)
                 await writer.drain()
 
-                _LOGGER.debug("Waiting for encrypted data from: %s", peername)
-                data = await reader.read(1000)
-                _LOGGER.debug("Encrypted data received: %s", data)
+                asyncio.create_task(self.async_func_wrap(event))
+
+        except Exception as e:
+            _LOGGER.exception("Unhandled exception in OH handler for %s: %s", peername, e)
+
+        finally:
+            writer.close()
+            try:
+                await writer.wait_closed()
             except ConnectionResetError:
-                _LOGGER.warning("Connection reset by peer: %s", peername)
-                break
+                _LOGGER.warning("Client %s reset the connection during close.", peername)
+            except Exception as e:
+                _LOGGER.warning("Unexpected error while closing connection with %s: %s", peername, e)
 
-            if data == EMPTY_BYTES or reader.at_eof():
-                _LOGGER.debug("Connection closed by client: %s", peername)
-                break
-
-            # Déchiffrer les données reçues
-            decrypted_data = self.oh.decrypt_data(data)
-            _LOGGER.debug("Decrypted data: %s", decrypted_data)
-
-            event = self.parse_and_check_event(decrypted_data)
-            if not event:
-                _LOGGER.warning("Failed to parse event from: %s", peername)
-                continue
-
-            # Créer et chiffrer la réponse
-            response = event.create_response()
-            if isinstance(response, str):
-                response = response.encode()
-            encrypted_response = self.oh.encrypt_data(response)
-
-            _LOGGER.debug("Sending encrypted response: %s", encrypted_response)
-            writer.write(encrypted_response)
-            await writer.drain()
-
-            # Lancer le traitement asynchrone sans bloquer la réponse
-            asyncio.create_task(self.async_func_wrap(event))
-
-        writer.close()
-        await writer.wait_closed()
-        _LOGGER.debug("Connection with %s closed.", peername)
+            _LOGGER.debug("Connection with %s closed.", peername)
 
 
 class SIAServerUDP(BaseSIAServer, asyncio.DatagramProtocol):
