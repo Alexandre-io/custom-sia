@@ -57,7 +57,8 @@ class SIAServerTCP(BaseSIAServer):
                 continue
             writer.write(event.create_response())
             await writer.drain()
-            await self.async_func_wrap(event)
+            # Lancer le traitement dans une tâche distincte pour ne pas bloquer l’ACK
+            asyncio.create_task(self.async_func_wrap(event))
 
         writer.close()
 
