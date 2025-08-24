@@ -300,9 +300,7 @@ class SIAEvent(BaseEvent):
         """
         if self.length is None or self.full_message is None:  # pragma: no cover
             return True
-        return int(self.length) == int(
-            str(len(self.full_message)), 16
-        )  # pragma: no cover
+        return int(self.length, 16) == len(self.full_message)  # pragma: no cover
 
     @property
     def valid_message(self) -> bool:
