@@ -85,16 +85,16 @@ class SIAClient(BaseSIAClient):
         pass
 
     async def start(self, **kwargs: Any) -> None:
-        """Use async_start instead, this method is depricated and will be removed."""
+        """Use async_start instead, this method is deprecated and will be removed."""
         _LOGGER.warning(
-            "This method is depricated and will be removed, use async_start instead."
+            "This method is deprecated and will be removed, use async_start instead."
         )
         await self.async_start(**kwargs)
 
     async def stop(self) -> None:
-        """Use async_stop instead, this method is depricated and will be removed."""
+        """Use async_stop instead, this method is deprecated and will be removed."""
         _LOGGER.warning(
-            "This method is depricated and will be removed, use async_stop instead."
+            "This method is deprecated and will be removed, use async_stop instead."
         )
         await self.async_stop()
 
