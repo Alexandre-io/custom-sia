@@ -39,6 +39,8 @@ class SIABinarySensorEntityDescription(
 ):
     """Describes SIA sensor entity."""
 
+    initial_state: bool | None = None
+
 
 ENTITY_DESCRIPTION_POWER = SIABinarySensorEntityDescription(
     key=KEY_POWER,
@@ -48,6 +50,7 @@ ENTITY_DESCRIPTION_POWER = SIABinarySensorEntityDescription(
         "AT": False,
         "AR": True,
     },
+    initial_state=True,
 )
 
 ENTITY_DESCRIPTION_SMOKE = SIABinarySensorEntityDescription(
@@ -114,6 +117,18 @@ class SIABinarySensor(SIABaseEntity, BinarySensorEntity):
     """Class for SIA Binary Sensors."""
 
     entity_description: SIABinarySensorEntityDescription
+
+    def __init__(
+        self,
+        entry: ConfigEntry,
+        account: str,
+        zone: int,
+        entity_description: SIABinarySensorEntityDescription,
+    ) -> None:
+        """Initialize the binary sensor."""
+        super().__init__(entry, account, zone, entity_description)
+        if entity_description.initial_state is not None:
+            self._attr_is_on = entity_description.initial_state
 
     def handle_last_state(self, last_state: State | None) -> None:
         """Handle the last state."""
