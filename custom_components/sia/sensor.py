@@ -15,6 +15,7 @@ from homeassistant.components.sensor import (
 from homeassistant.const import EntityCategory
 from .sia_entity_base import SIABaseEntity, SIAEntityDescription
 from .const import CONF_ACCOUNT, CONF_ACCOUNTS, CONF_ZONES
+from .utils import get_attr_from_sia_event
 import logging
 import re
 from typing import Iterable
@@ -56,13 +57,15 @@ class SIATextLog(SIABaseEntity):
             add_message= f" ({what}: {actor.strip()})" if actor and what else actor
 
         log_entry = f"{sia_event.code} - { sia_event.sia_code.description}{add_message}"
-        self._attr_extra_state_attributes = {}
+        self._attr_extra_state_attributes = get_attr_from_sia_event(sia_event)
+        if sia_event.x_data:
+            self._attr_extra_state_attributes["x_data"] = sia_event.x_data
         self._attr_state = log_entry
         # Log het bericht en schrijf de status weg
         self.async_write_ha_state()
 
         # Altijd True retourneren, omdat alle logs relevant zijn
-        return False
+        return True
 
     def handle_last_state(self, last_state: State | None) -> None:
         """Handle the last state."""
