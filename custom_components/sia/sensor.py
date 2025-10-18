@@ -1,28 +1,14 @@
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.core import HomeAssistant, State
-from homeassistant.helpers.typing import StateType
-
-
-from homeassistant.components.sensor import (
-    SensorDeviceClass,
-    SensorEntity,
-    SensorEntityDescription,
-)
-
-from homeassistant.const import EntityCategory
 from .sia_entity_base import SIABaseEntity, SIAEntityDescription
-from .const import CONF_ACCOUNT, CONF_ACCOUNTS, CONF_ZONES
-from .utils import get_attr_from_sia_event
+from .const import AVAILABILITY_EVENT_CODE, CONF_ACCOUNT, CONF_ACCOUNTS
+from .utils import get_attr_from_sia_event, get_event_data_from_sia_event
 import logging
 import re
 from typing import Iterable
 
 _LOGGER = logging.getLogger(__name__)
-
-SIGNAL_SIA_UPDATE = "sia_update_signal"
 
 ENTITY_DESCRIPTION_LOG = SIAEntityDescription(
     key="log",
@@ -31,40 +17,44 @@ ENTITY_DESCRIPTION_LOG = SIAEntityDescription(
 )
 
 class SIATextLog(SIABaseEntity):
-    """SIA Log Entity voor tekstgebaseerde logs."""
+    """SIA Log entity for text-based logs."""
 
     @property
     def state(self):
-        """Laat de nieuwste logregel zien."""
+        """Return the latest log line."""
         return self._attr_state if self._attr_state else "Geen logs"
 
 
     def update_state(self, sia_event) -> bool:
-        """Werk de status van de entiteit bij en log het evenement."""
+        """Update the entity state and log the event."""
 
-        _LOGGER.info(f"Ontvangen SIA evenement: {sia_event.sia_code}")
-        # Controleer of de code een beschrijving heeft
+        if not getattr(sia_event, "sia_code", None):
+            _LOGGER.debug("No SIA code present for event %s", sia_event)
+            return False
+
+        _LOGGER.info("Received SIA event: %s", sia_event.sia_code)
+        # Check if the code has a description
         if sia_event.sia_code.code == "RP":
             return False
 
-        # Bouw het logbericht
+        # Build the log message
         add_message = ""
         if sia_event.message:
 
             actor = f" ({match.group(1)})" if (match := re.search(r"'([^']*)'", sia_event.message)) and match.group(1) else ""
-            what = (match := re.match(r"(\w+)", sia_event.sia_code.concerns)) and sia_event.sia_code.concerns != "Unused" and match.group(1) or ""
+            concerns = sia_event.sia_code.concerns or ""
+            what = (match := re.match(r"(\w+)", concerns)) and concerns != "Unused" and match.group(1) or ""
 
-            add_message= f" ({what}: {actor.strip()})" if actor and what else actor
+            add_message = f" ({what}: {actor.strip()})" if actor and what else actor
 
-        log_entry = f"{sia_event.code} - { sia_event.sia_code.description}{add_message}"
-        self._attr_extra_state_attributes = get_attr_from_sia_event(sia_event)
-        if sia_event.x_data:
-            self._attr_extra_state_attributes["x_data"] = sia_event.x_data
+        xsia_suffix = f" - XSIA: {sia_event.x_data}" if sia_event.x_data else ""
+        log_entry = f"{sia_event.code} - {sia_event.sia_code.description}{add_message}{xsia_suffix}"
+        event_attributes = get_event_data_from_sia_event(sia_event)
+        event_attributes.update(get_attr_from_sia_event(sia_event))
+        self._attr_extra_state_attributes = event_attributes
         self._attr_state = log_entry
-        # Log het bericht en schrijf de status weg
-        self.async_write_ha_state()
 
-        # Altijd True retourneren, omdat alle logs relevant zijn
+        # Always return True because all logs are relevant
         return True
 
     def handle_last_state(self, last_state: State | None) -> None:
@@ -72,18 +62,32 @@ class SIATextLog(SIABaseEntity):
         if last_state is not None:
             self._attr_state = last_state.state
 
+    @callback
+    def async_handle_event(self, sia_event) -> None:
+        """Process all SIA events regardless of the zone."""
+        _LOGGER.debug("Log entity handled event: %s", sia_event)
+
+        relevant_event = self.update_state(sia_event)
+
+        if relevant_event:
+            self._attr_extra_state_attributes.update(get_attr_from_sia_event(sia_event))
+
+        if relevant_event or sia_event.code == AVAILABILITY_EVENT_CODE:
+            self._attr_available = True
+            self._cancel_post_interval_update_cb()
+            self.async_create_post_interval_update_cb()
+
+        self.async_write_ha_state()
+
 async def generate_text_logs(hass, entry: ConfigEntry) -> Iterable[SIATextLog]:
-    """Genereer log-entiteiten voor elk account en zone."""
+    """Generate log entities for each account."""
     entities = []
 
-    # Doorloop alle accounts in de configuratie
+    # Iterate over all accounts in the configuration
     for account_data in entry.data[CONF_ACCOUNTS]:
         account = account_data[CONF_ACCOUNT]
 
-        # Haal zones op uit opties
-        zones = entry.options[CONF_ACCOUNTS][account][CONF_ZONES]
-
-        # Voeg een log-entiteit toe voor de hoofdzone (0)
+        # Add a log entity for the hub zone (0)
         entities.append(
             SIATextLog(
                 entry=entry,
