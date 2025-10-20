@@ -124,6 +124,9 @@ class SIAServerOH(BaseSIAServer):
                     except ValueError:
                         continue
 
+                    if candidate.startswith(b"SR") and b"]" not in candidate:
+                        continue
+
                     if b"\r" not in candidate and not candidate.startswith(b"SR"):
                         continue
 
