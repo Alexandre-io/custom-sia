@@ -101,7 +101,7 @@ class SIAServerOH(BaseSIAServer):
                 try:
                     _LOGGER.debug("Waiting for encrypted data from: %s", peername)
                     data = await reader.read(1000)
-                    _LOGGER.debug("Encrypted data received from %s: %s", peername, data)
+                    _LOGGER.debug("Encrypted data received from %s: %s", peername, data.hex())
                 except ConnectionResetError:
                     _LOGGER.warning("Connection reset by peer: %s", peername)
                     break
@@ -111,7 +111,11 @@ class SIAServerOH(BaseSIAServer):
                     break
 
                 decrypted_data = oh.decrypt_data(data)
-                _LOGGER.debug("Decrypted data from %s: %s", peername, decrypted_data)
+                try:
+                    decoded_data = decrypted_data.decode("ascii")
+                except UnicodeDecodeError:
+                    decoded_data = decrypted_data.decode("ascii", "ignore")
+                _LOGGER.debug("Decrypted data from %s: %s", peername, decoded_data)
 
                 event = self.parse_and_check_event(decrypted_data)
                 if not event:
