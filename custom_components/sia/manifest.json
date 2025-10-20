@@ -1,7 +1,7 @@
 {
   "domain": "sia",
   "name": "SIA Alarm Systems",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "codeowners": ["@alexandre-io"],
   "config_flow": true,
   "documentation": "https://www.home-assistant.io/integrations/sia",
