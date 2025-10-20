@@ -124,14 +124,19 @@ class SIAServerOH(BaseSIAServer):
                     except ValueError:
                         continue
 
-                    if b"\r" not in candidate:
+                    if b"\r" not in candidate and not candidate.startswith(b"SR"):
                         continue
 
                     decrypted_data = candidate
                     break
 
                 if not buffer or decrypted_data is None:
-                    break
+                    if not buffer:
+                        break
+                    _LOGGER.debug(
+                        "Incomplete frame from %s, awaiting additional data.", peername
+                    )
+                    continue
 
                 data = bytes(buffer)
                 _LOGGER.debug("Encrypted data received from %s: %s", peername, data)
