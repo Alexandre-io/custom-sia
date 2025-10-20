@@ -56,7 +56,11 @@ class BaseSIAServer(ABC):
             ResponseType: The response to send to the alarm.
 
         """
-        line = str.strip(data.decode("ascii", errors="ignore"))
+        decoded = data.decode("ascii", errors="ignore")
+        if decoded.startswith("SR"):
+            line = decoded.rstrip("\r\n")
+        else:
+            line = decoded.strip()
         if not line:
             return None
         self.log_and_count(COUNTER_EVENTS, line=line)
