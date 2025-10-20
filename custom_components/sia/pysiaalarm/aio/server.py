@@ -124,10 +124,11 @@ class SIAServerOH(BaseSIAServer):
                     except ValueError:
                         continue
 
-                    if candidate.startswith(b"SR") and b"]" not in candidate:
-                        continue
+                    if candidate.startswith(b"SR"):
+                        decrypted_data = candidate
+                        break
 
-                    if b"\r" not in candidate and not candidate.startswith(b"SR"):
+                    if b"\r" not in candidate:
                         continue
 
                     decrypted_data = candidate
