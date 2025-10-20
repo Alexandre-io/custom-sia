@@ -70,11 +70,16 @@ class SIAServerOH(BaseSIAServer):
         accounts: dict[str, SIAAccount],
         func: Callable[[SIAEvent], Awaitable[None]],
         counts: Counter,
-        oh: OsborneHoffman = None
+        oh: OsborneHoffman | Callable[[], OsborneHoffman] | None = None
     ):
         """Create a SIA OH Server."""
         BaseSIAServer.__init__(self, accounts, counts, async_func=func)
-        self.oh = oh or OsborneHoffman()
+        if callable(oh):
+            self._oh_factory = oh  # type: ignore[assignment]
+        elif oh is not None:
+            self._oh_factory = lambda: oh
+        else:
+            self._oh_factory = OsborneHoffman
 
     async def handle_line(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -84,27 +89,52 @@ class SIAServerOH(BaseSIAServer):
         peername = writer.get_extra_info("peername")
         _LOGGER.debug("New OH connection from: %s", peername)
 
-        scrambled_key = self.oh.get_scrambled_key()
+        oh = self._oh_factory()
+        scrambled_key = oh.get_scrambled_key()
 
         try:
+            _LOGGER.debug("Sending scrambled key to: %s", peername)
+            writer.write(scrambled_key)
+            await writer.drain()
+
             while True and not self.shutdown_flag:
-                try:
-                    _LOGGER.debug("Sending scrambled key to: %s", peername)
-                    writer.write(scrambled_key)
-                    await writer.drain()
+                buffer = bytearray()
+                decrypted_data: bytes | None = None
 
-                    _LOGGER.debug("Waiting for encrypted data from: %s", peername)
-                    data = await reader.read(1000)
-                    _LOGGER.debug("Encrypted data received from %s: %s", peername, data)
-                except ConnectionResetError:
-                    _LOGGER.warning("Connection reset by peer: %s", peername)
+                while not self.shutdown_flag:
+                    try:
+                        chunk = await reader.read(1024)
+                    except ConnectionResetError:
+                        _LOGGER.warning("Connection reset by peer: %s", peername)
+                        buffer.clear()
+                        break
+
+                    if chunk == EMPTY_BYTES:
+                        _LOGGER.debug("Connection closed by client: %s", peername)
+                        buffer.clear()
+                        break
+
+                    buffer.extend(chunk)
+
+                    if len(buffer) % 8 != 0:
+                        continue
+
+                    try:
+                        candidate = oh.decrypt_data(bytes(buffer))
+                    except ValueError:
+                        continue
+
+                    if b"\r" not in candidate:
+                        continue
+
+                    decrypted_data = candidate
                     break
 
-                if data == EMPTY_BYTES or reader.at_eof():
-                    _LOGGER.debug("Connection closed by client: %s", peername)
+                if not buffer or decrypted_data is None:
                     break
 
-                decrypted_data = self.oh.decrypt_data(data)
+                data = bytes(buffer)
+                _LOGGER.debug("Encrypted data received from %s: %s", peername, data)
                 _LOGGER.debug("Decrypted data from %s: %s", peername, decrypted_data)
 
                 event = self.parse_and_check_event(decrypted_data)
@@ -116,7 +146,7 @@ class SIAServerOH(BaseSIAServer):
                 if isinstance(response, str):
                     response = response.encode()
 
-                encrypted_response = self.oh.encrypt_data(response)
+                encrypted_response = oh.encrypt_data(response)
 
                 _LOGGER.debug("Sending encrypted response to %s: %s", peername, encrypted_response)
                 writer.write(encrypted_response)

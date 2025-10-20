@@ -34,12 +34,7 @@ class OsborneHoffman():
     ):
         data = self._cipher.decrypt(data)
         _LOGGER.debug("OH-XSIA OH data %s", data)
-        padding_len = len(data)-data.rfind(b'\r') - 1
-        data_len = len(data)
-        if padding_len != data_len:
-            data = data[:-padding_len]
-        #data = data.rstrip(b'\x00')
-        return data
+        return data.rstrip(b'\x00')
 
     def get_scrambled_key(self):
         key = bytearray(self._key)
