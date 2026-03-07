@@ -13,7 +13,7 @@
             "unknown": "Unexpected error"
         },
         "step": {
-            "additional_account": {
+            "add_account": {
                 "data": {
                     "account": "Account ID",
                     "additional_account": "Additional accounts",

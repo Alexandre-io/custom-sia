@@ -31,7 +31,6 @@ from .const import (
     DOMAIN,
     TITLE,
 )
-from .hub import SIAHub
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -178,17 +177,22 @@ class SIAOptionsFlowHandler(config_entries.OptionsFlow):
         """Initialize SIA options flow."""
         self.config_entry = config_entry
         self.options = deepcopy(dict(config_entry.options))
-        self.hub: SIAHub | None = None
-        self.accounts_todo: list = []
+        self.accounts_todo: list[str] = []
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Manage the SIA options."""
-        self.hub = self.hass.data[DOMAIN][self.config_entry.entry_id]
-        assert self.hub is not None
-        assert self.hub.sia_accounts is not None
-        self.accounts_todo = [a.account_id for a in self.hub.sia_accounts]
+        account_options = self.options.setdefault(CONF_ACCOUNTS, {})
+        self.accounts_todo = []
+        for account_data in self.config_entry.data[CONF_ACCOUNTS]:
+            account = account_data[CONF_ACCOUNT]
+            self.accounts_todo.append(account)
+            account_options.setdefault(account, deepcopy(DEFAULT_OPTIONS))
+            account_options[account].setdefault(CONF_IGNORE_TIMESTAMPS, False)
+            account_options[account][CONF_ZONES] = (
+                account_options[account].get(CONF_ZONES) or 1
+            )
         return await self.async_step_options()
 
     async def async_step_options(

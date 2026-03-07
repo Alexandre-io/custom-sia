@@ -13,7 +13,7 @@
         },
         "title": "Create a connection for SIA based alarm systems."
       },
-      "additional_account": {
+      "add_account": {
         "data": {
           "account": "[%key:component::sia::config::step::user::data::account%]",
           "encryption_key": "[%key:component::sia::config::step::user::data::encryption_key%]",

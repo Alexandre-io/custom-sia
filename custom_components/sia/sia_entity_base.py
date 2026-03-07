@@ -73,7 +73,6 @@ class SIABaseEntity(RestoreEntity):
         self._attr_unique_id, self._attr_name = get_unique_id_and_name(
             entry.entry_id, entry.data[CONF_PORT], account, zone, entity_description.key
         )
-        self.name = entity_description.key
 
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry.data[CONF_PORT]}_{account}")},

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+from typing import TYPE_CHECKING
 
 from .pysiaalarm import SIAEvent
 
@@ -12,10 +13,9 @@ from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelState,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_UNAVAILABLE
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import StateType
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import CONF_ACCOUNT, CONF_ACCOUNTS, CONF_ZONES, KEY_ALARM, PREVIOUS_STATE
 from .sia_entity_base import SIABaseEntity, SIAEntityDescription
@@ -38,6 +38,7 @@ ENTITY_DESCRIPTION_ALARM = SIAAlarmControlPanelEntityDescription(
         "JA": AlarmControlPanelState.TRIGGERED,
         "TA": AlarmControlPanelState.TRIGGERED,
         "BA": AlarmControlPanelState.TRIGGERED,
+        "HA": AlarmControlPanelState.TRIGGERED,
         "CA": AlarmControlPanelState.ARMED_AWAY,
         "CB": AlarmControlPanelState.ARMED_AWAY,
         "CG": AlarmControlPanelState.ARMED_HOME,
@@ -55,6 +56,7 @@ ENTITY_DESCRIPTION_ALARM = SIAAlarmControlPanelEntityDescription(
         "OQ": AlarmControlPanelState.DISARMED,
         "OR": AlarmControlPanelState.DISARMED,
         "OS": AlarmControlPanelState.DISARMED,
+        "NC": AlarmControlPanelState.ARMED_NIGHT,
         "NL": AlarmControlPanelState.ARMED_NIGHT,
         "NE": AlarmControlPanelState.ARMED_CUSTOM_BYPASS,
         "NF": AlarmControlPanelState.ARMED_CUSTOM_BYPASS,
@@ -66,7 +68,7 @@ ENTITY_DESCRIPTION_ALARM = SIAAlarmControlPanelEntityDescription(
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up SIA alarm_control_panel(s) from a config entry."""
     async_add_entities(
@@ -79,6 +81,7 @@ async def async_setup_entry(
             entry.options[CONF_ACCOUNTS][account_data[CONF_ACCOUNT]][CONF_ZONES] + 1,
         )
     )
+
 
 class SIAAlarmControlPanel(SIABaseEntity, AlarmControlPanelEntity):
     """Class for SIA Alarm Control Panels."""
@@ -100,18 +103,17 @@ class SIAAlarmControlPanel(SIABaseEntity, AlarmControlPanelEntity):
             entity_description,
         )
 
-        self._alarm_state: AlarmControlPanelState | None = None
+        self._attr_alarm_state: AlarmControlPanelState | None = None
         self._old_state: AlarmControlPanelState | None = None
-
-    @property
-    def alarm_state(self) -> AlarmControlPanelState | None:
-        """Return the state of the alarm."""
-        return self._alarm_state
 
     def handle_last_state(self, last_state: State | None) -> None:
         """Handle the last state."""
-        if last_state is not None:
-            self._alarm_state = last_state.state
+        self._attr_alarm_state = None
+        if last_state is not None and last_state.state not in (
+            STATE_UNAVAILABLE,
+            STATE_UNKNOWN,
+        ):
+            self._attr_alarm_state = AlarmControlPanelState(last_state.state)
         if self.state == STATE_UNAVAILABLE:
             self._attr_available = False
 
@@ -127,9 +129,8 @@ class SIAAlarmControlPanel(SIABaseEntity, AlarmControlPanelEntity):
             return False
         _LOGGER.debug("New state will be %s", new_state)
         if new_state == PREVIOUS_STATE:
-            if self._old_state != 'triggered':
-                new_state = self._old_state
-            else:
-                new_state = self._state
-        self._alarm_state, self._old_state = new_state, self._alarm_state
+            new_state = self._old_state
+        if TYPE_CHECKING:
+            assert isinstance(new_state, AlarmControlPanelState)
+        self._attr_alarm_state, self._old_state = new_state, self._attr_alarm_state
         return True

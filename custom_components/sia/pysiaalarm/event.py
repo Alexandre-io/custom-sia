@@ -156,7 +156,7 @@ class BaseEvent(ABC):
         acc = main_content["account"]
         sia_account = None
         if accounts and acc:
-            sia_account = accounts.get(acc, None)
+            sia_account = accounts.get(acc, None) or accounts.get("", None)
 
         return SIAEvent(
             full_message=incoming[8:],
@@ -182,7 +182,7 @@ class BaseEvent(ABC):
                 .astimezone(device_timezone)
                 .strftime("_%H:%M:%S,%m-%d-%Y")
             )
-        return datetime.utcnow().strftime("_%H:%M:%S,%m-%d-%Y")
+        return datetime.now(timezone.utc).strftime("_%H:%M:%S,%m-%d-%Y")
 
     @staticmethod
     def _crc_calc(msg: str | None) -> str | None:
