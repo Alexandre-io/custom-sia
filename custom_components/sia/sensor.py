@@ -1,10 +1,11 @@
 """Module for SIA log sensors."""
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 import logging
 import re
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import MAX_LENGTH_STATE_STATE
 from homeassistant.core import HomeAssistant, State, callback
@@ -20,15 +21,18 @@ _LOGGER = logging.getLogger(__name__)
 DEFAULT_LOG_STATE = "No logs"
 ATTR_FULL_LOG_ENTRY = "full_log_entry"
 
-ENTITY_DESCRIPTION_LOG = SIAEntityDescription(
-    key="log",
-    device_class=None,
-    code_consequences={},
-)
+@dataclass(frozen=True)
+class SIASensorEntityDescription(SensorEntityDescription, SIAEntityDescription):
+    """Describes a SIA sensor entity."""
+
+
+ENTITY_DESCRIPTION_LOG = SIASensorEntityDescription(key="log", code_consequences={})
 
 
 class SIATextLog(SIABaseEntity, SensorEntity):
     """SIA Log entity for text-based logs."""
+
+    entity_description: SIASensorEntityDescription
 
     @property
     def native_value(self) -> str:
